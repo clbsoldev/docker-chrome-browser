@@ -1,0 +1,136 @@
+---
+name: Build and publish image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "image/**"
+  schedule:
+    - cron: "0 22 * * 0"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image to OCI tarball
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --output type=oci,dest=image.tar \
+            ./image
+
+      - name: Upload OCI tarball
+        uses: actions/upload-artifact@v7
+        with:
+          name: image-tar
+          path: image.tar
+          retention-days: 1
+
+  check:
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.digest.outputs.changed }}
+      new_digest: ${{ steps.digest.outputs.new }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download OCI tarball
+        uses: actions/download-artifact@v8
+        with:
+          name: image-tar
+
+      - name: Compute and compare content digest
+        id: digest
+        run: |
+          NEW_DIGEST=$(sha256sum image.tar | awk '{print $1}')
+          OLD_DIGEST=$(cat digest.txt 2>/dev/null || echo "none")
+          echo "new=$NEW_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Previous digest: $OLD_DIGEST"
+          echo "New digest:      $NEW_DIGEST"
+          if [ "$NEW_DIGEST" != "$OLD_DIGEST" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: [build, check]
+    if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download OCI tarball
+        uses: actions/download-artifact@v8
+        with:
+          name: image-tar
+
+      - name: Install skopeo
+        run: sudo apt-get update && sudo apt-get install -y skopeo
+
+      - name: Derive image name from repository
+        id: meta
+        run: |
+          # e.g. "clbsoldev/docker-syslog-logdy-server" -> "syslog-logdy-server"
+          # (strips a leading "docker-" repo-naming prefix, if present, lowercase)
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          REPO_NAME="${REPO_NAME#docker-}"
+          echo "image_name=${REPO_NAME,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Push to GHCR
+        run: |
+          skopeo copy \
+            --multi-arch all \
+            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+            oci-archive:image.tar \
+            docker://ghcr.io/${{ github.repository_owner }}/${{ steps.meta.outputs.image_name }}:latest
+
+      - name: Push to Docker Hub
+        if: vars.ENABLE_DOCKERHUB == 'true'
+        run: |
+          skopeo copy \
+            --multi-arch all \
+            --dest-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
+            oci-archive:image.tar \
+            docker://docker.io/${{ vars.DOCKERHUB_NAMESPACE }}/${{ steps.meta.outputs.image_name }}:latest
+
+      - name: Sync README to Docker Hub
+        if: vars.ENABLE_DOCKERHUB == 'true'
+        # Docker Hub's description-update API does not accept access tokens
+        # (confirmed Docker Hub limitation, not a scope issue) - only real
+        # account passwords work, which we don't want to store as a secret.
+        # continue-on-error so this cosmetic step never fails the actual
+        # image push, which is what matters.
+        continue-on-error: true
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ vars.DOCKERHUB_NAMESPACE }}/${{ steps.meta.outputs.image_name }}
+          readme-filepath: ./README.md
+
+      - name: Commit updated digest
+        run: |
+          echo "${{ needs.check.outputs.new_digest }}" > digest.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add digest.txt
+          git commit -m "chore: update image digest to ${{ needs.check.outputs.new_digest }}"
+          git push

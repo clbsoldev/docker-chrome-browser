@@ -1,0 +1,35 @@
+- name: bug
+  color: "d73a4a"
+  description: "Something isn't working as expected"
+
+- name: enhancement
+  color: "a2eeef"
+  description: "New feature or improvement"
+
+- name: question
+  color: "d876e3"
+  description: "Further information is requested"
+
+- name: documentation
+  color: "0075ca"
+  description: "Affects the documentation"
+
+- name: dependencies
+  color: "0366d6"
+  description: "Changes to dependencies (base image, actions, packages)"
+
+- name: security
+  color: "b60205"
+  description: "Security-relevant change"
+
+- name: ci
+  color: "1d76db"
+  description: "Affects CI/CD (workflows, build pipeline)"
+
+- name: image-update
+  color: "5319e7"
+  description: "A new image was built/published"
+
+- name: github-actions
+  color: "000000"
+  description: "Changes to GitHub Actions workflows"
