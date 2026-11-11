@@ -5,7 +5,8 @@ FROM debian:13-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# TigerVNC (Xvnc = X server + real RFB VNC in one, no separate x11vnc needed)
+# TigerVNC (Xtigervnc = X server + real RFB VNC in one, no separate x11vnc needed)
+# tigervnc-tools provides tigervncpasswd (moved out of tigervnc-common in trixie)
 # Openbox as minimal WM (window decorations only, no full desktop environment)
 # gosu for clean privilege drop (root -> browser user) in the entrypoint
 # libnss3-tools for the Chrome NSS CA import (certutil)
@@ -15,6 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         gnupg \
         tigervnc-standalone-server \
         tigervnc-common \
+        tigervnc-tools \
         openbox \
         dbus-x11 \
         fonts-liberation \
@@ -41,7 +43,6 @@ ENV DISPLAY=:1 \
     PGID=1000 \
     HOME=/home/browser
 
-# VNC (RFB) only - no HTTP port, access exclusively via VNC/Guacamole
 EXPOSE 5901
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
