@@ -38,10 +38,10 @@ fi
 #     and as a last resort an INSECURE default so the container is testable
 #     out of the box. ---
 if [ -n "${VNC_PASSWORD_FILE}" ] && [ -f "${VNC_PASSWORD_FILE}" ]; then
-    gosu browser bash -c "vncpasswd -f < '${VNC_PASSWORD_FILE}' > '${VNC_PASSWD_FILE}'"
+    gosu browser bash -c "tigervncpasswd -f < '${VNC_PASSWORD_FILE}' > '${VNC_PASSWD_FILE}'"
     chmod 600 "${VNC_PASSWD_FILE}"
 elif [ -n "${VNC_PASSWORD}" ] && [ ! -f "${VNC_PASSWD_FILE}" ]; then
-    gosu browser bash -c "echo '${VNC_PASSWORD}' | vncpasswd -f > ${VNC_PASSWD_FILE}"
+    gosu browser bash -c "echo '${VNC_PASSWORD}' | tigervncpasswd -f > ${VNC_PASSWD_FILE}"
     chmod 600 "${VNC_PASSWD_FILE}"
 elif [ ! -f "${VNC_PASSWD_FILE}" ]; then
     echo "##############################################################"
@@ -50,14 +50,14 @@ elif [ ! -f "${VNC_PASSWD_FILE}" ]; then
     echo "# Set VNC_PASSWORD_FILE (preferred) or VNC_PASSWORD before"
     echo "# exposing this anywhere beyond local testing."
     echo "##############################################################"
-    gosu browser bash -c "echo '${INSECURE_DEFAULT_VNC_PASSWORD}' | vncpasswd -f > ${VNC_PASSWD_FILE}"
+    gosu browser bash -c "echo '${INSECURE_DEFAULT_VNC_PASSWORD}' | tigervncpasswd -f > ${VNC_PASSWD_FILE}"
     chmod 600 "${VNC_PASSWD_FILE}"
 fi
 
 SEC_ARGS="-SecurityTypes VncAuth -PasswordFile ${VNC_PASSWD_FILE}"
 
 # shellcheck disable=SC2086
-gosu browser Xvnc "${DISPLAY}" \
+gosu browser Xtigervnc "${DISPLAY}" \
     -geometry "${VNC_RESOLUTION}" \
     -depth "${VNC_DEPTH}" \
     ${SEC_ARGS} \
