@@ -1,23 +1,47 @@
-# TODO: Replace this entire image/ directory with your actual image.
-#
-# FROM debian:trixie-slim
-#
-# RUN apt-get update \
-#     && apt-get install -y --no-install-recommends <packages> \
-#     && rm -rf /var/lib/apt/lists/*
-#
-# COPY entrypoint.sh /entrypoint.sh
-# RUN chmod +x /entrypoint.sh
-#
-# ENTRYPOINT ["/entrypoint.sh"]
+# TODO: pin by digest — run `docker buildx imagetools inspect debian:13-slim`
+# and paste the *manifest list* digest here (see docker-image-template Readme —
+# not `docker inspect`, that only reflects the local host's architecture).
+FROM debian:13-slim
 
-FROM debian:trixie-slim
+ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
+# TigerVNC (Xvnc = X server + real RFB VNC in one, no separate x11vnc needed)
+# Openbox as minimal WM (window decorations only, no full desktop environment)
+# gosu for clean privilege drop (root -> browser user) in the entrypoint
+# libnss3-tools for the Chrome NSS CA import (certutil)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        gnupg \
+        tigervnc-standalone-server \
+        tigervnc-common \
+        openbox \
+        dbus-x11 \
+        fonts-liberation \
+        fonts-noto-color-emoji \
+        libnss3-tools \
+        xdg-utils \
+        gosu \
+    && curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+        | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
+        > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY openbox-autostart /etc/xdg/openbox/autostart
+RUN chmod +x /usr/local/bin/entrypoint.sh /etc/xdg/openbox/autostart
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENV DISPLAY=:1 \
+    VNC_RESOLUTION=1920x1080 \
+    VNC_DEPTH=24 \
+    PUID=1000 \
+    PGID=1000 \
+    HOME=/home/browser
+
+# VNC (RFB) only - no HTTP port, access exclusively via VNC/Guacamole
+EXPOSE 5901
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

@@ -1,0 +1,7 @@
+#!/bin/sh
+google-chrome-stable \
+    --start-maximized \
+    --no-first-run \
+    --no-default-browser-check \
+    --disable-session-crashed-bubble \
+    --password-store=basic &

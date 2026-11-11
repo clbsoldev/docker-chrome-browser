@@ -1,53 +1,39 @@
-# docker-image-template
+# docker-browser-chrome
 
-Template repo for `clbsoldev` Docker images: build → content digest comparison
-→ publish to GHCR (optionally Docker Hub), multi-arch (`linux/amd64,linux/arm64`).
+Minimal Debian + TigerVNC + Google Chrome container for accessing internal
+lab web services via VNC (and later Guacamole). Real RFB VNC only — no
+HTTP/WebRTC streaming (Selkies/noVNC) — so it works directly with plain VNC
+clients and with Guacamole's native VNC protocol.
 
-## Creating a new image from this template
+## Image
 
-1. "Use this template" → create a new repo. Repo name = resulting image name
-   (e.g. repo `syslog-logdy-server` → `ghcr.io/clbsoldev/syslog-logdy-server`).
-   The workflow derives the image name from the repo name automatically —
-   **`.github/workflows/build.yml` does not need to be changed for this.**
-2. Replace the entire `image/` directory with your actual image.
-3. Pin the base image by digest:
-   ```bash
-   docker buildx imagetools inspect <image>:<tag>
-   ```
-   Enter the *top-level* digest (manifest list, not `docker inspect` — that
-   one only reflects the local host's architecture and would break arm64
-   builds) into the Dockerfile.
-4. Replace `Readme.md` and `Changelog.md` with project-specific content.
-5. If Docker Hub should be used: set the repo variable `ENABLE_DOCKERHUB=true`,
-   add `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` as secrets, and add a
-   `short-description` to the `dockerhub-description` step in `build.yml`
-   (that's project-specific text and can't be derived generically).
+- Base: Debian 13 (slim), multi-arch (amd64/arm64)
+- `Xvnc` (TigerVNC) + Openbox (minimal window manager) + `google-chrome-stable`
+  (official Google packages, amd64 and arm64)
+- No multi-user support by design — one container per user
 
-## How `build.yml` behaves
+## Environment variables
 
-- **Image name**: derived automatically from the repo name, with a leading
-  `docker-` prefix stripped if present (matches the `docker-<name>` repo
-  naming convention, e.g. repo `docker-syslog-logdy-server` → image
-  `ghcr.io/clbsoldev/syslog-logdy-server`). No workflow edit needed per repo.
-- **Publish gate**: the `check` job hashes the built OCI tarball and compares
-  it against `digest.txt` from the last run. Only if the content actually
-  changed does `publish` run — so a weekly cron rebuild with no real change
-  (e.g. base image unchanged) doesn't spam a new `:latest` push.
-- **Docker Hub is off by default.** To enable it on a given repo: set the
-  repo variable `ENABLE_DOCKERHUB=true` (Settings → Secrets and variables →
-  Actions → Variables), and add `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` as
-  secrets. Without the variable, both Docker Hub steps are skipped entirely
-  — GHCR publishing always happens regardless of this toggle.
+| Variable | Default | Description |
+|---|---|---|
+| `VNC_RESOLUTION` | `1920x1080` | Xvnc screen resolution |
+| `VNC_DEPTH` | `24` | Color depth |
+| `PUID` / `PGID` | `1000` / `1000` | UID/GID for the `browser` user |
+| `VNC_PASSWORD_FILE` | — | Path to a file containing the VNC password (preferred) |
+| `VNC_PASSWORD` | — | Plaintext VNC password (fallback, testing only) |
 
-## Labels
+If neither is set, the container falls back to an **insecure default
+password** (`Start123!`), logged loudly as a warning on startup, so it's
+testable out of the box.
 
-`.github/labels.yml` is automatically synced to the repo on every push that
-changes this file (`label-sync.yml`, via `micnncim/action-label-syncer`). Just
-add/change labels there and push.
+## Volumes
 
-## Known limitation of "Use this template"
+| Path | Purpose |
+|---|---|
+| `/home/browser` | Chrome profile (persist across restarts) |
+| `/etc/opt/chrome/policies/managed/bookmarks.json` | Chrome `ManagedBookmarks` enterprise policy |
+| `/usr/local/share/ca-certificates/` | Mount custom CA `.crt` files here — picked up automatically on startup |
 
-GitHub does **not** copy repository labels when using "Use this template" —
-only files. That's what the separate `label-sync.yml` workflow is for: it
-runs automatically on the first push to `main` in the new repo and creates
-the labels from `labels.yml`, with no manual step required.
+## Port
+
+`5901/tcp` — VNC (RFB). No HTTP port.
