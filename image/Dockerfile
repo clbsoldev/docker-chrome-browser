@@ -1,7 +1,7 @@
 # TODO: pin by digest — run `docker buildx imagetools inspect debian:13-slim`
 # and paste the *manifest list* digest here (see docker-image-template Readme —
 # not `docker inspect`, that only reflects the local host's architecture).
-FROM debian:13-slim
+FROM debian:13-slim@sha256:REPLACE_ME
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -10,6 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Openbox as minimal WM (window decorations only, no full desktop environment)
 # gosu for clean privilege drop (root -> browser user) in the entrypoint
 # libnss3-tools for the Chrome NSS CA import (certutil)
+# python3 for the optional monitor.py endpoint
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
@@ -24,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libnss3-tools \
         xdg-utils \
         gosu \
+        python3 \
     && curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
         | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
@@ -34,15 +36,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY openbox-autostart /etc/xdg/openbox/autostart
-RUN chmod +x /usr/local/bin/entrypoint.sh /etc/xdg/openbox/autostart
+COPY monitor.py /usr/local/bin/monitor.py
+RUN chmod +x /usr/local/bin/entrypoint.sh /etc/xdg/openbox/autostart /usr/local/bin/monitor.py
 
 ENV DISPLAY=:1 \
     VNC_RESOLUTION=1920x1080 \
     VNC_DEPTH=24 \
     PUID=1000 \
     PGID=1000 \
-    HOME=/home/browser
+    HOME=/home/browser \
+    MONITORING=0 \
+    MONITOR_PORT=8082 \
+    WATCHED_SERVICES=Xtigervnc,openbox,chrome
 
-EXPOSE 5901
+EXPOSE 5901 8082
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

@@ -62,8 +62,16 @@ sleep 2
 gosu browser bash -c "export DISPLAY=${DISPLAY}; export HOME=/home/browser; dbus-launch --exit-with-session openbox-session" &
 WM_PID=$!
 
+MON_PID=""
+case "${MONITORING:-0}" in
+    1|true|TRUE|True)
+        gosu browser python3 /usr/local/bin/monitor.py &
+        MON_PID=$!
+        ;;
+esac
+
 term_handler() {
-    kill -TERM "${WM_PID}" "${XVNC_PID}" 2>/dev/null || true
+    kill -TERM "${WM_PID}" "${XVNC_PID}" ${MON_PID:+"${MON_PID}"} 2>/dev/null || true
     wait
 }
 trap term_handler SIGTERM SIGINT
