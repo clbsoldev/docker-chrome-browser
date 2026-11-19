@@ -1,7 +1,7 @@
 # TODO: pin by digest — run `docker buildx imagetools inspect debian:13-slim`
 # and paste the *manifest list* digest here (see docker-image-template Readme —
 # not `docker inspect`, that only reflects the local host's architecture).
-FROM debian:13-slim@sha256:REPLACE_ME
+FROM debian:13-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY openbox-autostart /etc/xdg/openbox/autostart
 COPY monitor.py /usr/local/bin/monitor.py
+COPY policies/extensions.json /etc/opt/chrome/policies/managed/extensions.json
 RUN chmod +x /usr/local/bin/entrypoint.sh /etc/xdg/openbox/autostart /usr/local/bin/monitor.py
 
 ENV DISPLAY=:1 \
